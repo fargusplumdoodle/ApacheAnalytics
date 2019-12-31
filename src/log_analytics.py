@@ -105,6 +105,7 @@ def get_client_info(dayclient: DayClient) -> DayClient:
 
     # making request to IP-API
     r = requests.get(str(IP_API_URL + dayclient.ip))
+    # TODO: check number of requests remaining in minute to ensure we dont go over
 
     if r.status_code != 200:
         print(DOCUMENTATION)
@@ -217,7 +218,7 @@ def generate_day_clients(requests_per_client) -> list:
         dayclient = DayClient()
 
         dayclient.ip = day[0]
-        dayclient.date = day[1]
+        dayclient.day = day[1]
         dayclient.requests = requests_per_client[day]
 
         # populating the rest of the fields
