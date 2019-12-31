@@ -2,6 +2,7 @@
 
 import sys
 import os
+import csv
 import re
 import requests
 import json
@@ -33,8 +34,11 @@ except IndexError:
 # For apache logs,  1: IPv4 address
 REQUEST_REGEX = r'^(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}) - - \[(\d\d\/\w{1,3}/\d{4}).*$'
 
+# for getting client information
 IP_API_URL = "http://ip-api.com/json/"
 
+# for writing to the CSV
+CSV_HEADER = ['date', 'ip', 'requests', 'country', 'city', 'entity']
 
 class DayClient:
     """
@@ -58,6 +62,16 @@ class DayClient:
 
     # number of requests by this client on this day
     requests = None
+
+    def get_row(self):
+        return [
+            self.day,
+            self.ip,
+            self.requests,
+            self.country,
+            self.city,
+            self.entity
+        ]
 
 
 def validate():
@@ -214,6 +228,22 @@ def generate_day_clients(requests_per_client) -> list:
     return dayclients
 
 
+def write_csv(dayclients):
+    """
+    This function writes a csv
+    :param dayclients: list of dayclient objects
+    """
+    with open(OUTPUT_CSV, mode='w') as output_csv:
+        # opening csv file
+        csv_fl = csv.writer(output_csv, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+
+        # writing header
+        csv_fl.writerow(CSV_HEADER)
+
+        for dayclient in dayclients:
+            csv_fl.writerow(dayclient.get_row())
+
+
 if __name__ == "__main__":
     validate()
 
@@ -223,6 +253,4 @@ if __name__ == "__main__":
 
     dayclients = generate_day_clients(requests_per_client)
 
-
-    for x in dayclients:
-        print(x.ip, x.city, x.requests)
+    write_csv(dayclients)
