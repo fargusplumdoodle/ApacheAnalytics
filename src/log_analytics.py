@@ -5,12 +5,14 @@ import os
 import csv
 import re
 import requests
+import time
 import json
 
 DOCUMENTATION = """
 -------------
 LOG ANALYTICS
 -------------
+
 
 Arguments:
     1. Path to Apache2 access log file
@@ -20,6 +22,14 @@ Description:
     Generates a CSV from apache logs that shows the number of requests 
     per day from each client as well as some additional information on the 
     client. 
+    
+Information Gathering:
+    This script consumes the ip-api service for information on each IP
+    We are limited to 45 requests per minute. Full information can be found
+    here:
+        https://ip-api.com/docs/api:json
+        
+    This script also ignores all local requests
 """
 VERBOSE = True
 ARGS = sys.argv
@@ -39,6 +49,7 @@ IP_API_URL = "http://ip-api.com/json/"
 
 # for writing to the CSV
 CSV_HEADER = ['date', 'ip', 'requests', 'country', 'city', 'entity']
+
 
 class DayClient:
     """
@@ -88,24 +99,54 @@ def validate():
         exit(2)
 
 
-def get_client_info(dayclient: DayClient) -> DayClient:
+def get_client_info(dayclient: DayClient, request_left, seconds_to_wait) -> (DayClient, int, int):
     """
     Returns a dayclient object with the following attributes set
         country
         city
         entity
 
+    Due to the request restrictions on the ip-api. We can only send
+    45 requests per minute to their API. In the headers of the response
+    they tell us how many requests are left and how many seconds we have
+    to wait before it resets
+    https://ip-api.com/docs/api:json
+
     :param dayclient: day client object with IP value set
-    :return: dayclient
+    :param request_left: number of requests left in this time period
+    :param seconds_to_wait: seconds left in this time period
+    :return: dayclient. seconds to wait, requests left
     """
     if dayclient.ip is None:
         print(DOCUMENTATION)
         print("ERROR: IP is not set on DayClient")
         exit(3)
 
+    # checking number of requests remaining, waiting if necessary
+    if request_left <= 1:
+        # according to their documentation
+        # this should never be greater than 60.
+        # however just in case, the longest we
+        # will ever wait is 60 seconds
+        if seconds_to_wait > 60:
+            seconds_to_wait = 60
+
+        # adding a little bit of extra time just to be safe
+        seconds_to_wait += 5
+        print("Request limit reached! Waiting %d seconds..." % seconds_to_wait)
+        time.sleep(seconds_to_wait)
+
     # making request to IP-API
     r = requests.get(str(IP_API_URL + dayclient.ip))
-    # TODO: check number of requests remaining in minute to ensure we dont go over
+
+    # according to the ip-api https://ip-api.com/docs/api:json
+    # X-Rl is the number of requests we have left in this minute
+    # X-Ttl is the number of seconds we have in this time period
+    seconds_to_wait = int(r.headers['X-Ttl'])
+    request_left = int(r.headers['X-Rl'])
+
+    if VERBOSE:
+        print("Requests remaining: %d, Seconds left: %d" % (request_left, seconds_to_wait))
 
     if r.status_code != 200:
         print(DOCUMENTATION)
@@ -119,7 +160,7 @@ def get_client_info(dayclient: DayClient) -> DayClient:
     dayclient.country = response["country"]
     dayclient.entity = response["as"]
 
-    return dayclient
+    return dayclient, seconds_to_wait, request_left
 
 
 def get_logs() -> list:
@@ -214,6 +255,12 @@ def generate_day_clients(requests_per_client) -> list:
     :return: list of DayClient objects
     """
     dayclients = []
+
+    # https://ip-api.com/docs/api:json
+    # for the ip-api , see get_client_info docs
+    request_left = 45
+    seconds_to_wait = 0
+
     for day in requests_per_client:
         dayclient = DayClient()
 
@@ -222,7 +269,7 @@ def generate_day_clients(requests_per_client) -> list:
         dayclient.requests = requests_per_client[day]
 
         # populating the rest of the fields
-        dayclient = get_client_info(dayclient)
+        dayclient, seconds_to_wait, request_left = get_client_info(dayclient, request_left, seconds_to_wait)
 
         dayclients.append(dayclient)
 
