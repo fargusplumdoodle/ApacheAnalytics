@@ -293,12 +293,34 @@ def write_csv(dayclients):
 
 
 if __name__ == "__main__":
+    """
+    Log analytics script!
+    ----------------------
+    
+    Takes an apache log and generates a CSV with information on
+    the number of requests from each client per day
+    
+    I dont care specifically who the clients are, only what city/country they are 
+    from.
+    
+    Procedure:
+        1. Validate data
+        2. Get each request from the log file
+        3. Count the requests from each client per day
+        4. Get information on each client
+        5. Write to CSV file
+    """
+    # 1. Validate data
     validate()
 
+    # 2. Get each request from the log file
     requests_events = get_logs()
 
+    # 3. Count the requests from each client per day
     requests_per_client = count_requests(requests_events)
 
+    # 4. Get information on each client
     dayclients = generate_day_clients(requests_per_client)
 
+    # 5. Write to CSV file
     write_csv(dayclients)
