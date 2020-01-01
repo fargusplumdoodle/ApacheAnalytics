@@ -1,3 +1,6 @@
 data
 .idea
 output.csv
+scripts/pull_and_run.sh
+.~lock.output.csv#
+access.log
